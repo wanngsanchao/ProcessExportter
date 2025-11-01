@@ -1,0 +1,5 @@
+{
+    "ipaddr":"127.0.0.1",
+    "port":"7070",
+    "process":["top","test1","metrics"]
+}
