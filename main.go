@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
@@ -15,48 +13,34 @@ var (
 )
 
 func main() {
-	gin.SetMode(gin.ReleaseMode)
-	log.SetOutput(gin.DefaultWriter)
-	log.SetPrefix("[metrics] ")
 
-	//1.get all process and listening ipaddr/port
-	err := LoadConfig(&cfg, Configpath)
-	log.Printf("loadconfig is successfully\n")
-
-	if err != nil {
+	//1.get all config including http server and process
+	if err := LoadConfig(&cfg, Configpath); err != nil {
 		log.Fatal("loadconfig fialed")
 	}
 
-	//2.slice []custome and each custime implment the func of the Desc and Collect
+	log.Printf("loadconfig is successfully\n")
+
+	//2. register all desc to global desc map
 	allp := InitAllProcessMetric(cfg.Process)
 
 	//3.register all custome process metric
 	prometheus.MustRegister(allp...)
 
-	//4.start http service
-	r := gin.New()
-	r.Use(gin.LoggerWithFormatter(func(params gin.LogFormatterParams) string {
-		// 保留 Gin 的默认颜色格式，仅在最前面添加 "[MY-APP]" 前缀
-		return fmt.Sprintf("[MY-APP] %s - [%s] \"%s %s\" %d %s\n",
-			params.ClientIP,
-			params.TimeStamp.Format("2006-01-02 15:04:05"),
-			params.Method,
-			params.Path,
-			params.StatusCode,
-			params.Latency,
-		)
-	}))
+	//4. init the http router
+	r, err := InitRouter()
+	if err != nil {
+		log.Fatal("init router failed\n")
+	}
 
-	// 强制启用颜色（确保终端显示彩色）
-	gin.ForceConsoleColor()
+	log.Printf("init router successfull\n")
 
-	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok"})
-	})
+	//5. register the handler
+	Register_handler(All_interface_handlers, r)
+	log.Printf("register the handler successfully\n")
 
+	//6.start http service
 	listenaddr := fmt.Sprintf("%s:%s", cfg.Ipaddr, cfg.Port)
-
 	if err := r.Run(listenaddr); err != nil {
 		log.Fatal("http server start failed")
 	}

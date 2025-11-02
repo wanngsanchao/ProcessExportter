@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -17,19 +16,6 @@ import (
 )
 
 // 定义日志级别
-type Level logrus.Level
-
-var (
-	accessinstance *logrus.Logger
-	errorinstance  *logrus.Logger
-	once           sync.Once
-)
-
-var (
-	accesslog string = "app-access.log"
-	errorlog  string = "app-error.log"
-)
-
 const (
 	DebugLevel Level = iota // 0
 	InfoLevel               // 1
@@ -50,41 +36,46 @@ const (
 	colorReset  = "\033[0m"
 )
 
+// 定义日志级别类型
+type Level logrus.Level
+
+var (
+	accessinstance *logrus.Logger
+	errorinstance  *logrus.Logger
+	once           sync.Once
+	accesslog      string = "app-access.log"
+	errorlog       string = "app-error.log"
+)
+
 // 初始化日志配置
-func InitLogger(logFile string, maxAge time.Duration, rotationTime time.Duration, level Level) (*Logrus.Logger, error) {
+func InitLogger(logFile string, maxAge time.Duration, rotationTime time.Duration, level Level) (*logrus.Logger, error) {
 
-	once.Do(func() {
-		// 创建日志实例
-		instance = logrus.New()
+	// 创建日志实例
+	instance := logrus.New()
 
-		// 设置日志级别
-		instance.SetLevel(logrus.Level(level))
+	// 设置日志级别
+	instance.SetLevel(logrus.Level(level))
 
-		// 设置日志格式
-		instance.SetFormatter(&logrus.TextFormatter{
-			ForceColors:     true,
-			FullTimestamp:   true,
-			TimestampFormat: "2006-01-02 15:04:05",
-			CallerPrettyfier: func(f *runtime.Frame) (string, string) {
-				filename := filepath.Base(f.File)
-				return "", fmt.Sprintf(" [%s:%d]", filename, f.Line)
-			},
-		})
-
-		// 同时输出到终端和文件
-		multiWriter := io.MultiWriter(os.Stdout, getRotatedLogWriter(logFile, maxAge, rotationTime))
-		instance.SetOutput(multiWriter)
-
-		// 显示调用者信息
-		instance.SetReportCaller(true)
-
-		// 设置颜色钩子
-		setColorHook()
+	// 设置日志格式
+	instance.SetFormatter(&logrus.TextFormatter{
+		ForceColors:     true,
+		FullTimestamp:   true,
+		TimestampFormat: "2006-01-02 15:04:05",
+		CallerPrettyfier: func(f *runtime.Frame) (string, string) {
+			filename := filepath.Base(f.File)
+			return "", fmt.Sprintf(" [%s:%d]", filename, f.Line)
+		},
 	})
 
-	if instance == nil {
-		err = errors.New("初始化日志失败")
-	}
+	// 同时输出到终端和文件
+	multiWriter := io.MultiWriter(os.Stdout, getRotatedLogWriter(logFile, maxAge, rotationTime))
+	instance.SetOutput(multiWriter)
+
+	// 显示调用者信息
+	instance.SetReportCaller(true)
+
+	// 设置颜色钩子
+	setColorHook(instance)
 
 	return instance, nil
 }
@@ -108,7 +99,7 @@ func getRotatedLogWriter(logFile string, maxAge time.Duration, rotationTime time
 }
 
 // 设置颜色钩子
-func setColorHook() {
+func setColorHook(instance *logrus.Logger) {
 	instance.AddHook(lfshook.NewHook(lfshook.WriterMap{
 		logrus.DebugLevel: os.Stdout,
 		logrus.InfoLevel:  os.Stdout,
